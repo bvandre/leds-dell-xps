@@ -29,13 +29,13 @@ struct app_wmi_args {
 };
 
 struct dell_xps_data {
-	struct platform_device 	*pdev;
-	struct led_classdev 	led;
-	u8						brightness;
-	u8						colors[MAX_ZONES];
+	struct platform_device	*pdev;
+	struct led_classdev	led;
+	u8			brightness;
+	u8			colors[MAX_ZONES];
 
-	struct work_struct		work;
-	u8						new;
+	struct work_struct	work;
+	u8			new;
 };
 
 #define led_to_dx_data(c)	container_of(c, struct dell_xps_data, led)
@@ -44,7 +44,7 @@ struct dell_xps_data {
 
 static struct platform_device *platform_device;
 
-const static char *colors[17] = {
+static const char *colors[17] = {
 	"none",
 	"ruby",
 	"citrine",
@@ -77,7 +77,7 @@ static int dell_wmi_perform_query(struct app_wmi_args *args)
 	input.pointer = args;
 
 	status = wmi_evaluate_method(LEGACY_POWER_CONTROL_GUID, 0, 1,
-				&input, &output);
+				     &input, &output);
 	if (!ACPI_SUCCESS(status))
 		goto err_out0;
 
@@ -121,18 +121,18 @@ static enum led_brightness dell_xps_brightness_get(struct led_classdev *led)
 
 static void dell_xps_work(struct work_struct *work)
 {
-	struct 	dell_xps_data *dx_data;
-	struct 	app_wmi_args args;
-	int 	ret;
+	struct	dell_xps_data *dx_data;
+	struct	app_wmi_args args;
+	int	ret;
 
 	dx_data = work_to_dx_data(work);
 
 	memset(&args, 0, sizeof(args));
 	if (dx_data->new) {
 		args.arg1 = (dx_data->colors[0]) |
-					(dx_data->colors[1] << 8) |
-					(dx_data->colors[2] << 16) |
-					((dx_data->new - 1) << 24);
+			    (dx_data->colors[1] << 8) |
+			    (dx_data->colors[2] << 16) |
+			    ((dx_data->new - 1) << 24);
 	} else {
 		args.arg1 = 0;
 	}
@@ -140,23 +140,23 @@ static void dell_xps_work(struct work_struct *work)
 	args.arg3 = dx_data->colors[3];
 	ret = set_led(&args);
 	if (ret)
-		dev_dbg(dx_data->led.dev,"error setting brightness: %d\n", ret);
+		dev_dbg(dx_data->led.dev, "error setting brightness: %d\n",
+			ret);
 	dx_data->brightness = dx_data->new;
-
 }
 
 static void dell_xps_brightness_set(struct led_classdev *led,
-					enum led_brightness brightness)
+				    enum led_brightness brightness)
 {
 	struct dell_xps_data *dx_data;
 
 	dx_data = led_to_dx_data(led);
 	dx_data->new = brightness;
 	schedule_work(&dx_data->work);
-
 }
 
-static ssize_t zone_1_color_show(struct device *dev, struct device_attribute *attr, char *buf)
+static ssize_t zone_1_color_show(struct device *dev,
+				 struct device_attribute *attr, char *buf)
 {
 	struct led_classdev *led = dev_get_drvdata(dev);
 	struct dell_xps_data *dx_data;
@@ -164,8 +164,8 @@ static ssize_t zone_1_color_show(struct device *dev, struct device_attribute *at
 	int len = 0;
 
 	dx_data = led_to_dx_data(led);
-	for (i=0; i < 17; i++) {
-		if (i == dx_data->colors[0]) 
+	for (i = 0; i < 17; i++) {
+		if (i == dx_data->colors[0])
 			len += sprintf(buf+len, "[%s] ", colors[i]);
 		else
 			len += sprintf(buf+len, "%s ", colors[i]);
@@ -174,7 +174,8 @@ static ssize_t zone_1_color_show(struct device *dev, struct device_attribute *at
 	return len;
 }
 
-ssize_t zone_1_color_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+ssize_t zone_1_color_store(struct device *dev, struct device_attribute *attr,
+			   const char *buf, size_t count)
 {
 	struct led_classdev *led = dev_get_drvdata(dev);
 	struct dell_xps_data *dx_data;
@@ -190,11 +191,11 @@ ssize_t zone_1_color_store(struct device *dev, struct device_attribute *attr, co
 	if (len && color_name[len - 1] == '\n')
 		color_name[len - 1] = '\0';
 
-	for (i=0; i < 17; i++) {
+	for (i = 0; i < 17; i++) {
 		if (!strcmp(color_name, colors[i])) {
 			dx_data->colors[0] = i;
 			led_set_brightness(&dx_data->led, dx_data->brightness);
-			return count; 
+			return count;
 		}
 	}
 
@@ -304,8 +305,6 @@ static void __exit dell_xps_led_exit(void)
 	platform_device_unregister(platform_device);
 	platform_driver_unregister(&dell_xps_driver);
 	kfree(dx_data);
-
-
 }
 
 module_init(dell_xps_led_init);
