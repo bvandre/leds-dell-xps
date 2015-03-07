@@ -174,7 +174,7 @@ static ssize_t zone_1_color_show(struct device *dev,
 	return len;
 }
 
-ssize_t zone_1_color_store(struct device *dev, struct device_attribute *attr,
+static ssize_t zone_1_color_store(struct device *dev, struct device_attribute *attr,
 			   const char *buf, size_t count)
 {
 	struct led_classdev *led = dev_get_drvdata(dev);
@@ -202,7 +202,7 @@ ssize_t zone_1_color_store(struct device *dev, struct device_attribute *attr,
 	return -EINVAL;
 }
 
-DEVICE_ATTR_RW(zone_1_color);
+static DEVICE_ATTR_RW(zone_1_color);
 
 static struct attribute *dell_xps_led_attributes[] = {
 	&dev_attr_zone_1_color.attr,
