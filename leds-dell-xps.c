@@ -63,27 +63,6 @@ const static char *colors[17] = {
 	"coral",
 	"diamond",
 };
-/*
-const static char *colors[17] = {
-	"none",
-	"red",
-	"gold",
-	"orange",
-	"lime green",
-	"green",
-	"light green",
-	"light blue",
-	"tanzanite",
-	"aquamarine",
-	"sapphie",
-	"iolite",
-	"amythest",
-	"kunzite",
-	"rhodolite",
-	"coral",
-	"diamond",
-};
-*/
 
 static int dell_wmi_perform_query(struct app_wmi_args *args)
 {
@@ -300,15 +279,8 @@ static int __init dell_xps_led_init(void)
 		goto fail_led;
 	}
 
-/*	ret = device_create_file(&dx_data->pdev->dev, &dev_attr_zone_1_color);
-	if (ret) {
-		pr_debug("dell_xps_led: registering device attr fail\n");
-		goto fail_attr;
-	}*/
-
 	return 0;
-/*fail_attr:
-	led_classdev_unregister(&dx_data->led);*/
+
 fail_led:
 	kfree(dx_data);
 fail_mem:
