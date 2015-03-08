@@ -299,7 +299,7 @@ static void __exit dell_xps_led_exit(void)
 	struct dell_xps_data *dx_data;
 
 	dx_data = platform_get_drvdata(platform_device);
-	device_remove_file(dx_data->led.dev, &dev_attr_zone_1_color);
+
 	led_classdev_unregister(&dx_data->led);
 	cancel_work_sync(&dx_data->work);
 	platform_device_unregister(platform_device);
