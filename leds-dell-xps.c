@@ -6,13 +6,13 @@
 #include <linux/mm.h>
 #include <linux/workqueue.h>
 
-#define LEGACY_POWER_CONTROL_GUID       "A80593CE-A997-11DA-B012-B622A1EF5492"
-#define MAX_ZONES						4
+#define LED_METHOD_GUID	    "A80593CE-A997-11DA-B012-B622A1EF5492"
+#define MAX_ZONES	    4
 
 MODULE_AUTHOR("Brian Vandre <bvandre@gmail.com>");
 MODULE_DESCRIPTION("Dell Case Lighting LEDS");
 MODULE_LICENSE("GPL");
-MODULE_ALIAS("wmi:" LEGACY_POWER_CONTROL_GUID);
+MODULE_ALIAS("wmi:" LED_METHOD_GUID);
 
 struct app_wmi_args {
 	u16 class;
@@ -76,7 +76,7 @@ static int dell_wmi_perform_query(struct app_wmi_args *args)
 	input.length = 128;
 	input.pointer = args;
 
-	status = wmi_evaluate_method(LEGACY_POWER_CONTROL_GUID, 0, 1,
+	status = wmi_evaluate_method(LED_METHOD_GUID, 0, 1,
 				     &input, &output);
 	if (!ACPI_SUCCESS(status))
 		goto err_out0;
@@ -166,16 +166,17 @@ static ssize_t zone_1_color_show(struct device *dev,
 	dx_data = led_to_dx_data(led);
 	for (i = 0; i < 17; i++) {
 		if (i == dx_data->colors[0])
-			len += sprintf(buf+len, "[%s] ", colors[i]);
+			len += sprintf(buf + len, "[%s] ", colors[i]);
 		else
-			len += sprintf(buf+len, "%s ", colors[i]);
+			len += sprintf(buf + len, "%s ", colors[i]);
 	}
-	len += sprintf(len+buf, "\n");
+	len += sprintf(len + buf, "\n");
 	return len;
 }
 
-static ssize_t zone_1_color_store(struct device *dev, struct device_attribute *attr,
-			   const char *buf, size_t count)
+static ssize_t zone_1_color_store(struct device *dev,
+				  struct device_attribute *attr,
+				  const char *buf, size_t count)
 {
 	struct led_classdev *led = dev_get_drvdata(dev);
 	struct dell_xps_data *dx_data;
@@ -230,7 +231,7 @@ static int __init dell_xps_led_init(void)
 	int ret;
 	struct dell_xps_data *dx_data;
 
-	if (!wmi_has_guid(LEGACY_POWER_CONTROL_GUID)) {
+	if (!wmi_has_guid(LED_METHOD_GUID)) {
 		pr_warn("dell_xps_led method not here\n");
 		return -ENODEV;
 	}
