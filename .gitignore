@@ -6,3 +6,4 @@
 *.symvers
 *.order
 *.patch
+tags
