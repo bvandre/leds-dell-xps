@@ -9,11 +9,6 @@
 #define LED_METHOD_GUID	    "A80593CE-A997-11DA-B012-B622A1EF5492"
 #define MAX_ZONES	    4
 
-MODULE_AUTHOR("Brian Vandre <bvandre@gmail.com>");
-MODULE_DESCRIPTION("Dell Case Lighting LEDS");
-MODULE_LICENSE("GPL");
-MODULE_ALIAS("wmi:" LED_METHOD_GUID);
-
 struct app_wmi_args {
 	u16 class;
 	u16 selector;
@@ -42,8 +37,6 @@ struct dell_xps_data {
 #define work_to_dx_data(c)	container_of(c, struct dell_xps_data, work)
 #define COLOR_NAME_MAX 11
 
-static struct platform_device *platform_device;
-
 static const char *colors[17] = {
 	"none",
 	"ruby",
@@ -63,6 +56,8 @@ static const char *colors[17] = {
 	"coral",
 	"diamond",
 };
+
+static struct platform_device *pdev;
 
 static int dell_wmi_perform_query(struct app_wmi_args *args)
 {
@@ -155,17 +150,21 @@ static void dell_xps_brightness_set(struct led_classdev *led,
 	schedule_work(&dx_data->work);
 }
 
-static ssize_t zone_1_color_show(struct device *dev,
+static ssize_t zone_color_show(struct device *dev,
 				 struct device_attribute *attr, char *buf)
 {
 	struct led_classdev *led = dev_get_drvdata(dev);
 	struct dell_xps_data *dx_data;
-	int i;
+	int i, zone;
 	int len = 0;
+
+	if (!sscanf(attr->attr.name, "zone_%d_color", &zone))
+		return -EINVAL;
+	zone--;
 
 	dx_data = led_to_dx_data(led);
 	for (i = 0; i < 17; i++) {
-		if (i == dx_data->colors[0])
+		if (i == dx_data->colors[zone])
 			len += sprintf(buf + len, "[%s] ", colors[i]);
 		else
 			len += sprintf(buf + len, "%s ", colors[i]);
@@ -174,15 +173,19 @@ static ssize_t zone_1_color_show(struct device *dev,
 	return len;
 }
 
-static ssize_t zone_1_color_store(struct device *dev,
+static ssize_t zone_color_store(struct device *dev,
 				  struct device_attribute *attr,
 				  const char *buf, size_t count)
 {
 	struct led_classdev *led = dev_get_drvdata(dev);
 	struct dell_xps_data *dx_data;
 	char color_name[COLOR_NAME_MAX];
-	int i;
+	int i, zone;
 	size_t len;
+
+	if (!sscanf(attr->attr.name, "zone_%d_color", &zone))
+		return -EINVAL;
+	zone--;
 
 	dx_data = led_to_dx_data(led);
 	color_name[sizeof(color_name) - 1] = '\0';
@@ -194,7 +197,7 @@ static ssize_t zone_1_color_store(struct device *dev,
 
 	for (i = 0; i < 17; i++) {
 		if (!strcmp(color_name, colors[i])) {
-			dx_data->colors[0] = i;
+			dx_data->colors[zone] = i;
 			led_set_brightness(&dx_data->led, dx_data->brightness);
 			return count;
 		}
@@ -203,75 +206,50 @@ static ssize_t zone_1_color_store(struct device *dev,
 	return -EINVAL;
 }
 
-static DEVICE_ATTR_RW(zone_1_color);
+static DEVICE_ATTR(zone_1_color, (S_IWUSR | S_IRUGO), zone_color_show, zone_color_store);
+static DEVICE_ATTR(zone_2_color, (S_IWUSR | S_IRUGO), zone_color_show, zone_color_store);
+static DEVICE_ATTR(zone_3_color, (S_IWUSR | S_IRUGO), zone_color_show, zone_color_store);
+static DEVICE_ATTR(zone_4_color, (S_IWUSR | S_IRUGO), zone_color_show, zone_color_store);
 
-static struct attribute *dell_xps_led_attributes[] = {
+static struct attribute *dell_xps_led_attrs[] = {
 	&dev_attr_zone_1_color.attr,
+	&dev_attr_zone_2_color.attr,
+	&dev_attr_zone_3_color.attr,
+	&dev_attr_zone_4_color.attr,
 	NULL,
 };
 
-static struct attribute_group dell_xps_led_attribute_group = {
-	.attrs = dell_xps_led_attributes
-};
+ATTRIBUTE_GROUPS(dell_xps_led);
 
-static const struct attribute_group *dell_xps_led_attribute_groups[] = {
-	&dell_xps_led_attribute_group,
-	NULL
-};
-
-static struct platform_driver dell_xps_driver = {
-	.driver = {
-		   .name = "dell-xps-led",
-		   .owner = THIS_MODULE,
-		   },
-};
-
-static int __init dell_xps_led_init(void)
+static int leds_dell_xps_probe(struct platform_device *pdev)
 {
-	int ret;
 	struct dell_xps_data *dx_data;
+	int ret;
 
 	if (!wmi_has_guid(LED_METHOD_GUID)) {
 		pr_warn("dell_xps_led method not here\n");
-		return -ENODEV;
+		ret = -ENODEV;
+		goto exit;
 	}
 
 	pr_debug("dell_xps_led: init\n");
 
-	ret = platform_driver_register(&dell_xps_driver);
-	if (ret) {
-		pr_debug("dell_xps_led: driver register fail\n");
-		goto fail_platform_driver;
-	}
-	pr_debug("dell_xps_led: driver registered\n");
-	platform_device = platform_device_alloc("dell-xps", -1);
-	if (!platform_device) {
-		pr_debug("dell_xps_led: device alloc fail\n");
-		goto fail_platform_device1;
-	}
-	pr_debug("dell_xps_led: platform_device allocated\n");
-	ret = platform_device_add(platform_device);
-	if (ret) {
-		pr_debug("dell_xps_led: device add fail\n");
-		goto fail_platform_device2;
-	}
-	pr_debug("dell_xps_led: platform_device added\n");
-
 	dx_data = kzalloc(sizeof(*dx_data), GFP_KERNEL);
-	if (!dx_data) {
+	if (IS_ERR(dx_data)) {
 		pr_debug("dell_xps_led: memory allocation fail\n");
 		ret = -ENOMEM;
-		goto fail_mem;
+		goto exit;
 	}
-	platform_set_drvdata(platform_device, dx_data);
-	dx_data->pdev = platform_device;
+	platform_set_drvdata(pdev, dx_data);
+	dx_data->pdev = pdev;
 	dx_data->brightness = 0;
 
 	dx_data->led.name = "dellxps:rgb:case_light";
 	dx_data->led.max_brightness = 8;
 	dx_data->led.brightness_get = dell_xps_brightness_get;
 	dx_data->led.brightness_set =  dell_xps_brightness_set;
-	dx_data->led.groups =  dell_xps_led_attribute_groups;
+	dx_data->led.groups =  dell_xps_led_groups;
+	dx_data->led.flags = LED_CORE_SUSPENDRESUME;
 
 	INIT_WORK(&dx_data->work, dell_xps_work);
 
@@ -281,32 +259,68 @@ static int __init dell_xps_led_init(void)
 		goto fail_led;
 	}
 
-	return 0;
+	return ret;
 
 fail_led:
 	kfree(dx_data);
-fail_mem:
-	platform_device_del(platform_device);
-fail_platform_device2:
-	platform_device_put(platform_device);
-fail_platform_device1:
-	platform_driver_unregister(&dell_xps_driver);
-fail_platform_driver:
+exit:
 	return ret;
 }
 
-static void __exit dell_xps_led_exit(void)
+static int leds_dell_xps_remove(struct platform_device *pdev)
 {
-	struct dell_xps_data *dx_data;
-
-	dx_data = platform_get_drvdata(platform_device);
+	struct dell_xps_data *dx_data = platform_get_drvdata(pdev);
 
 	led_classdev_unregister(&dx_data->led);
-	cancel_work_sync(&dx_data->work);
-	platform_device_unregister(platform_device);
-	platform_driver_unregister(&dell_xps_driver);
+	flush_work(&dx_data->work);
 	kfree(dx_data);
+
+	return 0;
 }
 
-module_init(dell_xps_led_init);
-module_exit(dell_xps_led_exit);
+static struct platform_driver leds_dell_xps_driver = {
+	.driver = {
+		   .name = "dell-xps-led",
+		   .owner = THIS_MODULE,
+		   },
+	.probe = leds_dell_xps_probe,
+	.remove = leds_dell_xps_remove,
+};
+
+static int __init dxl_init(void)
+{
+	int ret;
+
+	ret = platform_driver_register(&leds_dell_xps_driver);
+	if (ret) {
+		ret = -ENODEV;
+		goto exit;
+	}
+
+	pdev = platform_device_register_simple(
+					      leds_dell_xps_driver.driver.name,
+					      -1, NULL, 0);
+	if (IS_ERR(pdev)) {
+		ret = PTR_ERR(pdev);
+		platform_driver_unregister(&leds_dell_xps_driver);
+		goto exit;
+	}
+
+exit:
+	return ret;
+}
+
+static void __exit dxl_exit(void)
+{
+	platform_device_unregister(pdev);
+	platform_driver_unregister(&leds_dell_xps_driver);
+}
+
+module_init(dxl_init);
+module_exit(dxl_exit);
+
+MODULE_AUTHOR("Brian Vandre <bvandre@gmail.com>");
+MODULE_DESCRIPTION("Dell Case Lighting LEDS");
+MODULE_LICENSE("GPL");
+MODULE_ALIAS("wmi:" LED_METHOD_GUID);
+
